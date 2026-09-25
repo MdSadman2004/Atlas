@@ -7,10 +7,12 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,21 +20,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,13 +51,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.atlas.agent.core.Atlas
 import com.atlas.agent.core.autonomy.GoalScheduler
 import com.atlas.agent.core.llm.ModelInfo
 import com.atlas.agent.core.util.Util
-import com.atlas.agent.ui.theme.AtlasMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -60,9 +63,9 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen() {
     var sub by remember { mutableStateOf<String?>(null) }
     when (sub) {
-        "tools" -> SubScreen("Tools", onBack = { sub = null }) { ToolsScreen() }
-        "memory" -> SubScreen("Memory", onBack = { sub = null }) { MemoryScreen() }
-        "skills" -> SubScreen("Skills", onBack = { sub = null }) { SkillsScreen() }
+        "tools" -> SubScreen("Tools", { sub = null }) { ToolsScreen() }
+        "memory" -> SubScreen("Memory", { sub = null }) { MemoryScreen() }
+        "skills" -> SubScreen("Skills", { sub = null }) { SkillsScreen() }
         else -> MainSettings(onOpen = { sub = it })
     }
 }
@@ -71,14 +74,37 @@ fun SettingsScreen() {
 private fun SubScreen(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(12.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("← back") }
-            Text(title, fontSize = 16.sp, modifier = Modifier.padding(start = 4.dp))
+            TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                Text("← back", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         content()
+    }
+}
+
+/** Small-caps section heading + hairline card. */
+@Composable
+private fun SettingCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column {
+        SectionTitle(title)
+        WarmCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), content = content) }
+    }
+}
+
+@Composable
+private fun OutlinePill(text: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        shape = CircleShape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -89,168 +115,245 @@ private fun MainSettings(onOpen: (String) -> Unit) {
 
     var baseUrl by remember { mutableStateOf(s.baseUrl) }
     var apiKey by remember { mutableStateOf(s.apiKey) }
-    var model by remember { mutableStateOf(s.model) }
-    var fastModel by remember { mutableStateOf(s.fastModel) }
-    var visionModel by remember { mutableStateOf(s.visionModel) }
-    var userName by remember { mutableStateOf(s.userName) }
     var aboutUser by remember { mutableStateOf(s.aboutUser) }
     var systemExtra by remember { mutableStateOf(s.systemExtra) }
     var status by remember { mutableStateOf<String?>(null) }
     var models by remember { mutableStateOf<List<ModelInfo>>(emptyList()) }
-    var showModels by remember { mutableStateOf(false) }
     var reload by remember { mutableStateOf(0) }
     val dbVersion by Atlas.db.version.collectAsStateWithLifecycle()
 
     LaunchedEffect(reload) {
-        models = withContext(Dispatchers.IO) {
-            runCatching { Atlas.llm.models() }.getOrDefault(emptyList())
-        }
+        models = withContext(Dispatchers.IO) { runCatching { Atlas.llm.models() }.getOrDefault(emptyList()) }
     }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        status = result.entries.joinToString(", ") { "${it.key.substringAfterLast('.')}=${it.value}" }
+        status = result.entries.joinToString(", ") { "${it.key.substringAfterLast('.')} ${if (it.value) "granted" else "denied"}" }
     }
+    val a11yOn = com.atlas.agent.core.a11y.AtlasA11yService.isEnabled(ctx)
 
-    LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        item { SectionTitle("Connection (CommandCode)") }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 60.dp),
+    ) {
         item {
-            OutlinedTextField(
-                value = baseUrl, onValueChange = { baseUrl = it },
-                label = { Text("Base URL") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            OutlinedTextField(
-                value = apiKey, onValueChange = { apiKey = it },
-                label = { Text("API key") }, singleLine = true,
-                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = {
-                    s.baseUrl = baseUrl
-                    s.apiKey = apiKey
-                    status = "saved; testing…"
-                    reload++
-                }) { Text("Save & test") }
+            Column {
+                Text("Setup", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    "${models.size} models on this key · model is locked",
-                    color = AtlasMuted, fontSize = 11.sp,
-                    modifier = Modifier.align(Alignment.CenterVertically),
+                    "Connection, autonomy, permissions and the library.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+
         item {
-            OutlinedButton(onClick = {
-                s.baseUrl = baseUrl
-                s.apiKey = apiKey
-                val sid = Atlas.db.createSession("self-test")
-                com.atlas.agent.core.service.AgentService.start(ctx)
-                com.atlas.agent.core.agent.RunController.start(
-                    sid,
-                    "Self-test: call the now tool, then reply with one short line confirming you are online.",
-                    emptyList(),
+            SettingCard("Connection") {
+                OutlinedTextField(
+                    value = baseUrl, onValueChange = { baseUrl = it },
+                    label = { Text("Base URL") }, singleLine = true,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                status = "self-test running — open the Chat tab to watch"
-            }) { Text("Run self-test") }
-        }
-        item {
-            Text("model: $model  🔒 locked · reasoning_effort=high", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
-            Text("vision: $visionModel", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = AtlasMuted)
-            Text("Every turn, title, memory extraction and sub-agent runs on the locked model.", color = AtlasMuted, fontSize = 10.sp)
-        }
-        status?.let { st ->
-            item { Text(st, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary) }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = apiKey, onValueChange = { apiKey = it },
+                    label = { Text("API key") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinePill("Save & test") {
+                        s.baseUrl = baseUrl
+                        s.apiKey = apiKey
+                        status = "saved — checking…"
+                        reload++
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinePill("Self-test") {
+                        s.baseUrl = baseUrl
+                        s.apiKey = apiKey
+                        val sid = Atlas.db.createSession("self-test")
+                        com.atlas.agent.core.service.AgentService.start(ctx)
+                        com.atlas.agent.core.agent.RunController.start(
+                            sid,
+                            "Self-test: call the now tool, then reply with one short line confirming you are online.",
+                            emptyList(),
+                        )
+                        status = "self-test running — watch the Chat tab"
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(active = false, tint = MaterialTheme.colorScheme.secondary, size = 6)
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        "model: ${s.model}  ·  locked  ·  reasoning_effort=high",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    "vision: ${s.visionModel}   ·   ${models.size} models on this key",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+                status?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                }
+            }
         }
 
-        item { SectionTitle("Agent") }
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Approvals", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                listOf("manual", "smart", "off").forEach { mode ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = s.approvals == mode, onClick = { s.approvals = mode })
-                        Text(mode, fontSize = 12.sp)
+            SettingCard("Behaviour") {
+                Text("Approvals", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(6.dp))
+                listOf(
+                    "off" to "Auto-approve — finish the job without stopping (default)",
+                    "smart" to "Ask before risky tools (shell, deletes, taps, SMS)",
+                    "manual" to "Ask before every tool call",
+                ).forEach { (mode, blurb) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { s.approvals = mode }.padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = s.approvals == mode,
+                            onClick = { s.approvals = mode },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.outline,
+                            ),
+                        )
+                        Column {
+                            Text(mode, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(blurb, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                SliderRow("Max steps per turn", s.maxSteps.toFloat(), 1f..60f, s.maxSteps.toString()) { s.maxSteps = it.toInt() }
+                SliderRow("Max tokens per reply", s.maxTokens.toFloat(), 512f..16000f, s.maxTokens.toString()) { s.maxTokens = it.toInt() }
+                SliderRow("History window", s.historyLimit.toFloat(), 6f..120f, "${s.historyLimit} messages") { s.historyLimit = it.toInt() }
+                SliderRow("Temperature", s.temperature, 0f..1.5f, "%.2f".format(s.temperature)) { s.temperature = it }
+                Spacer(Modifier.height(6.dp))
+                SwitchRow("Stream replies", s.streaming) { s.streaming = it }
+                SwitchRow("Auto-extract memories", s.autoMemory) { s.autoMemory = it }
+                SwitchRow("AI-generated chat titles", s.titleModel) { s.titleModel = it }
+            }
+        }
+
+        item {
+            SettingCard("Appearance") {
+                listOf("dark" to "Dark warm (default)", "light" to "Light warm").forEach { (mode, blurb) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            s.theme = mode
+                            (ctx as? android.app.Activity)?.recreate()
+                        }.padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = s.theme == mode,
+                            onClick = {
+                                s.theme = mode
+                                (ctx as? android.app.Activity)?.recreate()
+                            },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.outline,
+                            ),
+                        )
+                        Text(blurb, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
         }
-        item {
-            Text("manual = every tool asks · smart = risky tools ask · off = no prompts (default)", color = AtlasMuted, fontSize = 11.sp)
-        }
-        item {
-            Text("Auto-approve is on by default: Atlas finishes tasks without stopping. Switch to smart/manual above if you want a gate on risky tools.", color = AtlasMuted, fontSize = 10.sp)
-        }
-        item {
-            IntSlider("Max steps per turn", s.maxSteps, 1f..60f) { s.maxSteps = it.toInt() }
-        }
-        item { IntSlider("Max tokens per reply", s.maxTokens, 512f..16000f) { s.maxTokens = it.toInt() } }
-        item {
-            Text("Temperature ${"%.2f".format(s.temperature)}", fontSize = 12.sp)
-            Slider(value = s.temperature, onValueChange = { s.temperature = it }, valueRange = 0f..1.5f)
-        }
-        item { IntSlider("History window (messages)", s.historyLimit, 6f..120f) { s.historyLimit = it.toInt() } }
-        item { SwitchRow("Stream replies", s.streaming) { s.streaming = it } }
-        item { SwitchRow("Auto-extract memories", s.autoMemory) { s.autoMemory = it } }
-        item { SwitchRow("AI-generated chat titles", s.titleModel) { s.titleModel = it } }
 
-        item { SectionTitle("User") }
         item {
-            OutlinedTextField(value = userName, onValueChange = { userName = it; s.userName = it }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        }
-        item {
-            OutlinedTextField(
-                value = aboutUser, onValueChange = { aboutUser = it; s.aboutUser = it },
-                label = { Text("About you (injected into every chat)") }, minLines = 4,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            OutlinedTextField(
-                value = systemExtra, onValueChange = { systemExtra = it; s.systemExtra = it },
-                label = { Text("Standing instructions") }, minLines = 3,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        item { SectionTitle("Voice") }
-        item { SwitchRow("Text-to-speech available", s.ttsEnabled) { s.ttsEnabled = it } }
-        item { SwitchRow("Speak replies out loud", s.speakReplies) { s.speakReplies = it } }
-        item { SwitchRow("Send after voice input", s.voiceAutoSend) { s.voiceAutoSend = it } }
-
-        item { SectionTitle("Autonomy") }
-        item { SwitchRow("Autonomous goals enabled", s.autonomyEnabled) {
-            s.autonomyEnabled = it
-            GoalScheduler(ctx).scheduleAll()
-        } }
-        item { IntSlider("Check interval (min)", s.autonomyIntervalMinutes, 15f..360f) {
-            s.autonomyIntervalMinutes = it.toInt()
-            GoalScheduler(ctx).scheduleAll()
-        } }
-        item { SwitchRow("Notify when a run finishes", s.notifyOnComplete) { s.notifyOnComplete = it } }
-        item {
-            Row {
-                OutlinedButton(onClick = { GoalScheduler(ctx).scheduleAll(); status = "autonomy scheduled" }) { Text("Reschedule now") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = {
-                    runCatching {
-                        val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                            .setData(Uri.parse("package:${ctx.packageName}"))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        ctx.startActivity(i)
-                    }
-                }) { Text("Battery exemption") }
+            SettingCard("About you") {
+                Text(
+                    "Kept in every conversation's context.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = aboutUser, onValueChange = { aboutUser = it; s.aboutUser = it },
+                    label = { Text("About you") }, minLines = 4,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = systemExtra, onValueChange = { systemExtra = it; s.systemExtra = it },
+                    label = { Text("Standing instructions") }, minLines = 3,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
 
-        item { SectionTitle("Permissions & access") }
         item {
-            Column {
+            SettingCard("Voice") {
+                SwitchRow("Text-to-speech available", s.ttsEnabled) { s.ttsEnabled = it }
+                SwitchRow("Speak replies out loud", s.speakReplies) { s.speakReplies = it }
+                SwitchRow("Send after voice input", s.voiceAutoSend) { s.voiceAutoSend = it }
+            }
+        }
+
+        item {
+            SettingCard("Autonomy") {
+                SwitchRow("Autonomous goals enabled", s.autonomyEnabled) {
+                    s.autonomyEnabled = it
+                    GoalScheduler(ctx).scheduleAll()
+                }
+                SliderRow("Check interval", s.autonomyIntervalMinutes.toFloat(), 15f..360f, "${s.autonomyIntervalMinutes} min") {
+                    s.autonomyIntervalMinutes = it.toInt()
+                    GoalScheduler(ctx).scheduleAll()
+                }
+                SwitchRow("Notify when a run finishes", s.notifyOnComplete) { s.notifyOnComplete = it }
+                Spacer(Modifier.height(10.dp))
                 Row {
-                    OutlinedButton(onClick = {
+                    OutlinePill("Reschedule") {
+                        GoalScheduler(ctx).scheduleAll()
+                        status = "autonomy rescheduled"
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinePill("Battery exemption") {
+                        runCatching {
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                    .setData(Uri.parse("package:${ctx.packageName}"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SettingCard("Permissions & access") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(active = a11yOn, tint = if (a11yOn) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (a11yOn) "screen control enabled" else "screen control off",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Row {
+                    OutlinePill("Grant phone permissions") {
                         permLauncher.launch(
                             arrayOf(
                                 Manifest.permission.RECORD_AUDIO,
@@ -260,45 +363,38 @@ private fun MainSettings(onOpen: (String) -> Unit) {
                                 Manifest.permission.POST_NOTIFICATIONS,
                             )
                         )
-                    }) { Text("Grant phone permissions") }
-                }
-                Row(Modifier.padding(top = 6.dp)) {
-                    OutlinedButton(onClick = {
-                        runCatching {
-                            ctx.startActivity(
-                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                    }) { Text("Enable screen control") }
+                    }
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (com.atlas.agent.core.a11y.AtlasA11yService.isEnabled(ctx)) "accessibility: ON" else "accessibility: off",
-                        fontSize = 11.sp,
-                        color = if (com.atlas.agent.core.a11y.AtlasA11yService.isEnabled(ctx)) MaterialTheme.colorScheme.secondary else AtlasMuted,
-                        modifier = Modifier.align(Alignment.CenterVertically),
-                    )
+                    OutlinePill("Screen control") {
+                        runCatching {
+                            ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    }
                 }
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Screen control (accessibility) lets Atlas read the screen and tap/type for you. Enable 'Atlas' in the list.",
-                    color = AtlasMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),
+                    "Screen control lets Atlas read the screen and tap, type and swipe for you. " +
+                        "On Android 13+ sideloaded apps may need “Allow restricted settings” in App info first.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        item { SectionTitle("Library") }
         item {
-            Row {
-                OutlinedButton(onClick = { onOpen("tools") }) { Text("Tools (${Atlas.tools.all().size})") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { onOpen("memory") }) { Text("Memory") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { onOpen("skills") }) { Text("Skills") }
+            SettingCard("Library") {
+                Row {
+                    OutlinePill("Tools · ${Atlas.tools.all().size}") { onOpen("tools") }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinePill("Memory") { onOpen("memory") }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinePill("Skills") { onOpen("skills") }
+                }
             }
         }
 
-        item { SectionTitle("About") }
         item {
-            Column {
+            SettingCard("About") {
                 KeyValueLine("Version", "1.0.0 (${com.atlas.agent.BuildConfig.VERSION_CODE})")
                 KeyValueLine("Tools", "${Atlas.tools.all().size} registered")
                 KeyValueLine("Models", "${models.size} available on this key")
@@ -307,71 +403,53 @@ private fun MainSettings(onOpen: (String) -> Unit) {
                 KeyValueLine("Approvals", s.approvals)
             }
         }
-        item { Spacer(Modifier.height(40.dp)) }
-    }
-
-    if (showModels) {
-        var query by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showModels = false },
-            title = { Text("Models") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = query, onValueChange = { query = it },
-                        label = { Text("filter") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    val filtered = models.filter { query.isBlank() || it.id.contains(query, true) }
-                    if (filtered.isEmpty()) {
-                        Text("no models loaded — check the API key and tap 'Save & test'", color = AtlasMuted, fontSize = 12.sp)
-                    }
-                    LazyColumn(Modifier.heightIn(max = 420.dp).padding(top = 6.dp)) {
-                        items(filtered) { m ->
-                            Column(
-                                Modifier.fillMaxWidth()
-                                    .clickable {
-                                        status = "model is hard-locked to deepseek/deepseek-v4.1-flash"
-                                        showModels = false
-                                    }
-                                    .padding(vertical = 6.dp)
-                            ) {
-                                Text(m.id, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                                Text(
-                                    "${m.name} · ${if (m.contextLength > 0) Util.fmtBytes(m.contextLength) + " ctx" else ""} · ${m.endpoints.joinToString(",")}",
-                                    fontSize = 10.sp, color = AtlasMuted,
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showModels = false }) { Text("Close") } },
-        )
     }
 }
 
 @Composable
 private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
-@Composable
-private fun IntSlider(label: String, value: Int, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
-    Column {
-        Text("$label: $value", fontSize = 12.sp)
-        Slider(
-            value = value.toFloat().coerceIn(range.start, range.endInclusive),
-            onValueChange = onChange,
-            valueRange = range,
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+        Switch(
+            checked = checked, onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+            ),
         )
     }
 }
 
-// ------------------------------------------------------------------ tools
+@Composable
+private fun SliderRow(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    display: String,
+    onChange: (Float) -> Unit,
+) {
+    Column(Modifier.padding(top = 6.dp)) {
+        Row {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(display, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(
+            value = value.coerceIn(range.start, range.endInclusive),
+            onValueChange = onChange,
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        )
+    }
+}
+
+// ------------------------------------------------------------------ library screens
 
 @Composable
 fun ToolsScreen() {
@@ -379,37 +457,47 @@ fun ToolsScreen() {
     val s = Atlas.settings
     val tools = remember(bump) { Atlas.tools.all() }
     val grouped = tools.groupBy { it.group }
-    LazyColumn(Modifier.fillMaxSize().padding(12.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         grouped.forEach { (group, list) ->
-            item {
-                Text(group.uppercase(), color = AtlasMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
-            }
+            item { SectionTitle(group) }
             items(list) { t ->
-                Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Column(Modifier.padding(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(t.name, fontFamily = FontFamily.Monospace, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                            if (t.dangerous) {
-                                Text("risky", color = MaterialTheme.colorScheme.error, fontSize = 10.sp, modifier = Modifier.padding(end = 8.dp))
+                WarmCard(Modifier.fillMaxWidth().animateItem()) {
+                    Row(Modifier.padding(start = 15.dp, end = 8.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(t.name, style = MaterialTheme.typography.labelLarge, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                                if (t.dangerous) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("risky", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                }
                             }
-                            Switch(
-                                checked = s.toolEnabled(t.name, t.defaultEnabled),
-                                onCheckedChange = {
-                                    s.setToolEnabled(t.name, it)
-                                    bump++
-                                },
-                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(t.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(t.description, fontSize = 11.sp, color = AtlasMuted)
+                        Switch(
+                            checked = s.toolEnabled(t.name, t.defaultEnabled),
+                            onCheckedChange = {
+                                s.setToolEnabled(t.name, it)
+                                bump++
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+                            ),
+                        )
                     }
                 }
             }
         }
-        item { Spacer(Modifier.height(30.dp)) }
     }
 }
-
-// ------------------------------------------------------------------ memory
 
 @Composable
 fun MemoryScreen() {
@@ -418,36 +506,49 @@ fun MemoryScreen() {
     var adding by remember { mutableStateOf(false) }
     var newText by remember { mutableStateOf("") }
 
-    LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         item {
-            Row {
-                OutlinedButton(onClick = { adding = true }) { Text("Add fact") }
-                Spacer(Modifier.width(8.dp))
-                Text("${rows.size} facts · injected into every chat", color = AtlasMuted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterVertically))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinePill("Add fact") { adding = true }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "${rows.size} remembered · injected into every chat",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         items(rows, key = { it.id }) { m ->
-            Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            WarmCard(Modifier.fillMaxWidth().animateItem()) {
+                Row(Modifier.padding(start = 15.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(m.text, fontSize = 12.sp)
-                        Text("imp ${m.importance} · used ${m.uses}×", color = AtlasMuted, fontSize = 10.sp)
+                        Text(m.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(Modifier.height(3.dp))
+                        Text("importance ${m.importance} · used ${m.uses}×", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    TextButton(onClick = { Atlas.memory.forget(m.id) }) { Text("delete") }
+                    TextButton(onClick = { Atlas.memory.forget(m.id) }) {
+                        Text("forget", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
-        item { Spacer(Modifier.height(30.dp)) }
     }
 
     if (adding) {
         AlertDialog(
             onDismissRequest = { adding = false },
-            title = { Text("New memory") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            title = { Text("New memory", style = MaterialTheme.typography.titleMedium) },
             text = {
                 OutlinedTextField(
                     value = newText, onValueChange = { newText = it },
-                    label = { Text("Fact about the user") }, minLines = 2,
+                    label = { Text("Fact worth remembering") }, minLines = 2,
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
@@ -458,14 +559,12 @@ fun MemoryScreen() {
                         newText = ""
                         adding = false
                     }
-                }) { Text("Save") }
+                }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
             },
-            dismissButton = { TextButton(onClick = { adding = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { adding = false }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         )
     }
 }
-
-// ------------------------------------------------------------------ skills
 
 @Composable
 fun SkillsScreen() {
@@ -478,54 +577,71 @@ fun SkillsScreen() {
     var newDesc by remember { mutableStateOf("") }
     var newBody by remember { mutableStateOf("") }
 
-    LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         item {
-            Row {
-                OutlinedButton(onClick = { creating = true }) { Text("New skill") }
-                Spacer(Modifier.width(8.dp))
-                Text("${skills.size} skills · loaded on demand", color = AtlasMuted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterVertically))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinePill("New skill") { creating = true }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "${skills.size} skills · loaded on demand",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         items(skills, key = { it.name }) { sk ->
-            Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)) {
-                Column(Modifier.padding(10.dp)) {
-                    Text(sk.name, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-                    Text(sk.description, fontSize = 11.sp, color = AtlasMuted)
-                    Row(Modifier.padding(top = 4.dp)) {
+            WarmCard(Modifier.fillMaxWidth().animateItem()) {
+                Column(Modifier.padding(15.dp)) {
+                    Text(sk.name, style = MaterialTheme.typography.labelLarge, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(3.dp))
+                    Text(sk.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Row {
                         TextButton(onClick = {
                             viewing = sk.name
                             viewingBody = sk.file.readText()
-                        }) { Text("view") }
-                        TextButton(onClick = { Atlas.skills.delete(sk.name) }) { Text("delete") }
+                        }) { Text("view", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
+                        TextButton(onClick = { Atlas.skills.delete(sk.name) }) {
+                            Text("delete", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         }
-        item { Spacer(Modifier.height(30.dp)) }
     }
 
     viewingBody?.let { body ->
         AlertDialog(
             onDismissRequest = { viewingBody = null; viewing = null },
-            title = { Text(viewing ?: "skill") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            title = { Text(viewing ?: "skill", style = MaterialTheme.typography.titleMedium) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()).heightIn(max = 460.dp)) {
-                    Text(body, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    Text(body, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            confirmButton = { TextButton(onClick = { viewingBody = null; viewing = null }) { Text("Close") } },
+            confirmButton = { TextButton(onClick = { viewingBody = null; viewing = null }) { Text("Close", color = MaterialTheme.colorScheme.primary) } },
         )
     }
 
     if (creating) {
         AlertDialog(
             onDismissRequest = { creating = false },
-            title = { Text("New skill") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            title = { Text("New skill", style = MaterialTheme.typography.titleMedium) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = newDesc, onValueChange = { newDesc = it }, label = { Text("one-line description") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-                    OutlinedTextField(value = newBody, onValueChange = { newBody = it }, label = { Text("body (markdown steps)") }, minLines = 5, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                    OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("name") }, singleLine = true, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(value = newDesc, onValueChange = { newDesc = it }, label = { Text("one-line description") }, singleLine = true, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(value = newBody, onValueChange = { newBody = it }, label = { Text("body (markdown steps)") }, minLines = 5, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -535,9 +651,9 @@ fun SkillsScreen() {
                         newName = ""; newDesc = ""; newBody = ""
                         creating = false
                     }
-                }) { Text("Save") }
+                }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
             },
-            dismissButton = { TextButton(onClick = { creating = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { creating = false }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         )
     }
 }

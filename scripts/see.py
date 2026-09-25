@@ -25,7 +25,7 @@ def load_key() -> str:
     raise SystemExit("no key: set ATLAS_KEY or COMMANDCODE_API_KEY")
 
 
-def ask(path: str, question: str, max_tokens: int = 600) -> str:
+def ask(path: str, question: str, max_tokens: int = 2000) -> str:
     b64 = base64.b64encode(open(path, "rb").read()).decode()
     mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
     payload = {
