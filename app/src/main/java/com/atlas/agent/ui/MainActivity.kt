@@ -49,6 +49,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_AUTOSEND = "autosend"
+        /** Session that hands-free / automation prompts run in, so they never pollute real chats. */
+        const val AUTOMATION_SESSION = "Automation"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,18 +64,34 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Hands-free path used by automation and device tests: submit the prompt immediately from the
+     * Activity, with no dependency on the Compose composer state.
+     */
+    private fun runAutomation(text: String) {
+        val db = com.atlas.agent.core.Atlas.db
+        val sessionId = db.sessions().firstOrNull { it.title == AUTOMATION_SESSION }?.id
+            ?: db.createSession(AUTOMATION_SESSION)
+        com.atlas.agent.core.service.AgentService.start(this)
+        com.atlas.agent.core.agent.RunController.start(sessionId, text, emptyList())
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent)
     }
 
-    private fun handleShareIntent(intent: Intent?) {
-        if (intent == null) return
+    private fun handleShareIntent(intent: Intent?) {        if (intent == null) return
         when (intent.action) {
             Intent.ACTION_SEND -> {
-                if (intent.getBooleanExtra(EXTRA_AUTOSEND, false)) ShareBus.autoSend.value = true
-                intent.getStringExtra(Intent.EXTRA_TEXT)?.let { ShareBus.text.value = it }
+                val shareText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                val auto = intent.getBooleanExtra(EXTRA_AUTOSEND, false)
+                if (auto && !shareText.isNullOrBlank()) {
+                    runAutomation(shareText)
+                } else {
+                    shareText?.let { ShareBus.text.value = it }
+                }
                 val uri = if (Build.VERSION.SDK_INT >= 33) {
                     intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
                 } else {
