@@ -16,6 +16,17 @@ skills and delegates work to sub-agents. Everything runs on-device, powered by t
 
 ---
 
+## Download
+
+**[⬇︎ Get the APK](https://github.com/MdSadman20040812/Atlas/releases/latest)** — `Atlas-1.0.0-debug.apk`, debug-signed, sideload it (Android 8.0+ / minSdk 26).
+The same release carries the demo film `atlas-full-test-run.mp4` and the original score `atlas-score.wav`.
+
+```bash
+adb install -r Atlas-1.0.0-debug.apk          # or open the APK on the phone
+```
+
+---
+
 ## What makes it an agent, not a chatbot
 
 | Capability | How it works |
