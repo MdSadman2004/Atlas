@@ -18,7 +18,7 @@ skills and delegates work to sub-agents. Everything runs on-device, powered by t
 
 ## Download
 
-**[⬇︎ Get the APK](https://github.com/MdSadman20040812/Atlas/releases/latest)** — `Atlas-1.0.0-debug.apk`, debug-signed, sideload it (Android 8.0+ / minSdk 26).
+**[⬇︎ Get the APK](https://github.com/MdSadman2004/Atlas/releases/latest)** — `Atlas-1.0.0-debug.apk`, debug-signed, sideload it (Android 8.0+ / minSdk 26).
 The same release carries the demo film `atlas-full-test-run.mp4` and the original score `atlas-score.wav`.
 
 ```bash
@@ -74,7 +74,7 @@ Compose UI ─► RunController ─► AgentEngine ─► LlmClient ─► Comma
 ## Build
 
 ```bash
-git clone https://github.com/MdSadman20040812/Atlas.git && cd Atlas
+git clone https://github.com/MdSadman2004/Atlas.git && cd Atlas
 export JAVA_HOME="/path/to/jdk-17"
 ./gradlew assembleDebug          # Gradle 8.9 · AGP 8.4.0 · Kotlin 2.0.21 · Compose BOM 2024.12.01
 adb install -r app/build/outputs/apk/debug/app-debug.apk

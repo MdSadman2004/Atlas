@@ -125,7 +125,7 @@ def outro_frames(n=120):
         a1 = ease((p - 0.15) / 0.3)
         draw_line(img, 610, 260 * a1, CLAY, a1)
         a2 = ease((p - 0.3) / 0.3)
-        draw_tracked(img, "github.com/MdSadman20040812/Atlas", mono, CLAY, 670, tracking=1.2, alpha=a2)
+        draw_tracked(img, "github.com/MdSadman2004/Atlas", mono, CLAY, 670, tracking=1.2, alpha=a2)
         for k, (text, col) in enumerate(lines):
             a = ease((p - 0.45 - k * 0.08) / 0.3)
             draw_tracked(img, text, sans, col, 760 + k * 52, tracking=0.4, alpha=a)
