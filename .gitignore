@@ -1,0 +1,23 @@
+# Gradle / build output
+.gradle/
+.kotlin/
+build/
+app/build/
+*.apk
+*.aab
+
+# Local machine config (contains absolute SDK path)
+local.properties
+
+# Logs & scratch from the build/test loop
+build-log-*.txt
+emulator*.log
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# OS noise
+.DS_Store
+Thumbs.db

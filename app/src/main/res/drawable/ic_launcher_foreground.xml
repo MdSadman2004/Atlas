@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- outer ring -->
+    <path
+        android:pathData="M54,26 a28,28 0 1,0 0.1,0"
+        android:strokeColor="#4FA3FF"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <!-- horizontal equator -->
+    <path
+        android:pathData="M27.5,54 L80.5,54"
+        android:strokeColor="#8FD0FF"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000" />
+    <!-- vertical meridian -->
+    <path
+        android:pathData="M54,26 L54,82"
+        android:strokeColor="#8FD0FF"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000" />
+    <!-- A glyph -->
+    <path
+        android:pathData="M44,64 L54,38 L64,64 M47.5,56 L60.5,56"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>
