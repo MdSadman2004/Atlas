@@ -1,140 +1,62 @@
 # Atlas
 
-**A fully autonomous agent that lives on your Android phone.** Not a chat client — Atlas plans,
-calls tools, drives the phone's UI, runs scheduled goals in the background, remembers facts, learns
-skills and delegates work to sub-agents. Everything runs on-device, powered by the
-[CommandCode](https://commandcode.ai) API.
+An Android agent with local tools, persistent memory, scheduled goals and API-backed inference.
 
-<p align="center">
-  <img src="docs/phone-chat.png" width="230" alt="Atlas chat with live tool chips">
-  <img src="docs/phone-goals.png" width="230" alt="Autonomous goals tab">
-  <img src="docs/phone-activity.png" width="230" alt="Run history and tool calls">
-  <img src="docs/phone-settings.png" width="230" alt="Setup: key, locked model, approvals">
-</p>
+![Atlas — source guide](docs/portfolio/overview.png)
 
-<p align="center"><em>Atlas on a Galaxy A07 (Android 16): live chat with tool chips · autonomous goals · run history · setup</em></p>
+*Source guide drawn from the files in this repository; not a runtime screenshot or a fresh benchmark.*
 
----
+## An agent on the phone, not a desktop relay
 
-## Download
+Atlas runs its orchestration, tools and state on Android. It can work with device information, files, web requests, accessibility actions, memory, skills and scheduled goals. Language-model inference is provided by the **external CommandCode API**; this is not a fully offline on-device model.
 
-**[⬇︎ Get the APK](https://github.com/MdSadman2004/Atlas/releases/latest)** — `Atlas-1.0.0-debug.apk`, debug-signed, sideload it (Android 8.0+ / minSdk 26).
-The same release carries the demo film `atlas-full-test-run.mp4` and the original score `atlas-score.wav`.
+**[Download releases](https://github.com/MdSadman2004/Atlas/releases)** · **[Architecture and verification record](docs/ARCHITECTURE.md)**
 
-```bash
-adb install -r Atlas-1.0.0-debug.apk          # or open the APK on the phone
-```
+## App preview
 
----
+![Atlas automation screen](docs/phone-goals.png)
 
-## What makes it an agent, not a chatbot
+*Existing Android capture from this repository: an enabled Battery watchdog goal. This is not a fresh device test or a live battery measurement.*
 
-| Capability | How it works |
-|---|---|
-| **49 built-in tools** | device & apps, files, web, shell, UI automation, memory, skills, goals, agent-internals |
-| **Screen control** | an AccessibilityService gives Atlas the UI tree (`ui_dump`), taps by text (`ui_tap`), typing, swipes, system keys and screenshots — it can operate apps for you |
-| **Vision** | `screenshot` → `analyze_image` (deepseek vision model) so it can actually *see* the screen |
-| **Autonomy** | standing goals run on WorkManager schedules in the background (survive reboot/app death), one-off deferred tasks, notifications with results |
-| **Memory** | durable facts injected into every prompt, plus automatic post-turn extraction |
-| **Skills** | markdown skills with frontmatter, progressive disclosure, seeded with `atlas-self`, `phone-control`, `web-research` |
-| **Sub-agents** | `spawn_agent` runs a nested agent loop in an isolated session and returns only its report |
-| **Voice** | speech-to-text composer and text-to-speech replies |
-| **Approvals** | `off` (default, auto-approve) · `smart` (risky tools ask) · `manual` (everything asks) |
-| **Foreground service** | long runs survive leaving the app; live status notification with a Stop action |
-| **Sessions & activity** | multiple conversations plus a run log with per-run steps, tokens, duration and every tool call |
+## Build and install
 
-## Verified on real hardware
-
-Galaxy A07 (**SM-A075F, Android 16 / API 36**), live runs against the CommandCode API:
-
-| run | tools executed | outcome |
-|---|---|---|
-| #2 | `now`, `battery` | *"Friday, 2026-09-25, 13:57 GMT+06:00 (Asia/Dhaka) — running on Samsung SM-A075F, Android 16. Battery 84%, not charging, 34.3 °C."* |
-| #3 | `skill_read`, `device_info` | multi-step reasoning over the skill index and device state |
-| goal tick | `battery` (autonomous) | goal *"Battery watchdog"* ran unattended, stayed silent as instructed, updated its own state |
-| sub-agent | `calc` inside a nested run | `spawn_agent → 449.0` returned to the parent |
-
-Emulator (Android 14) additionally proved: parallel tool calls in one step, the approval gate
-pausing and resuming a run, `ui_dump` → `screenshot` → `analyze_image`, and a deferred
-`schedule_once` task firing 2 minutes later with a notification.
-
-## Architecture
-
-Full write-up: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — runtime shape, the agent loop,
-the CommandCode integration (endpoints, streaming, tool-call contract, vision), the SQLite data
-model, autonomy scheduling, permissions and the verification log.
-
-```
-Compose UI ─► RunController ─► AgentEngine ─► LlmClient ─► CommandCode API
-                    │              │
-                    │              └─► 49 tools ─► Android APIs · AccessibilityService · WorkManager
-                    └─► AgentService (foreground liveness) + SQLite (sessions, messages, goals, runs, events)
-```
-
-## Build
+The module declares **minSdk 26, compileSdk 35 and JVM target 17**. Use JDK 17, Android SDK 35 and a compatible Gradle installation.
 
 ```bash
-git clone https://github.com/MdSadman2004/Atlas.git && cd Atlas
-export JAVA_HOME="/path/to/jdk-17"
-./gradlew assembleDebug          # Gradle 8.9 · AGP 8.4.0 · Kotlin 2.0.21 · Compose BOM 2024.12.01
+git clone https://github.com/MdSadman2004/Atlas.git
+cd Atlas
+```
+
+The wrapper launch scripts and properties are included, but the wrapper JAR is absent in the audited tree. Use an installed Gradle 8.9 distribution, or restore the wrapper from a trusted Gradle distribution first:
+
+```bash
+gradle assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Install & first run
+Alternatively, sideload the APK from the release page; debug-signed builds are development distributions, not store-certified releases.
 
-```bash
-# optional: preload the API key + settings over ADB
-ATLAS_KEY='<your-commandcode-key>' bash scripts/install.sh --key
-```
+## First run and permissions
 
-1. **Setup → Connection** — verify the key (*Save & test* fetches the live model list).
-2. **Grant phone permissions**, and **Enable screen control** if you want UI automation
-   (Android → Accessibility → Atlas).
-3. Optional: *Battery exemption* so scheduled goals are never deferred.
+1. Enter your own CommandCode key in Setup and use the connection test.
+2. Review app permissions; enable the Atlas AccessibilityService only if you need UI control.
+3. Choose an approval mode before asking it to change files or operate another application. The source defaults to automatic approval (`off`); use `smart` or `manual` for more oversight.
+4. Review battery restrictions before relying on background schedules.
 
-### Configuration defaults
+[Agent prompt](app/src/main/java/com/atlas/agent/core/agent/Prompt.kt) · [tool registry](app/src/main/java/com/atlas/agent/core/tools/ToolRegistry.kt) · [settings](app/src/main/java/com/atlas/agent/core/store/Settings.kt).
 
-* **Model is hard-locked** to `deepseek/deepseek-v4.1-flash` with `reasoning_effort: "high"`
-  (deliberate: stored prefs can't switch it, setters are no-ops, the picker UI is gone).
-* **Approvals default to `off`** — auto-approve; Atlas finishes its work without stopping.
-* **Vision** uses `deepseek/deepseek-v4-flash-vision-exp`.
-* Autonomy ticks every 15 min by default; each goal has its own interval (15–720 min).
+## Source guide
 
-### Hands-free driving (automation / testing)
+| Component | File | Purpose |
+| :-- | :-- | :-- |
+| Agent loop | [app/src/main/java/com/atlas/agent/core/agent/AgentEngine.kt](app/src/main/java/com/atlas/agent/core/agent/AgentEngine.kt) | Plans turns and executes registered tools |
+| Phone interaction | [app/src/main/java/com/atlas/agent/core/a11y/AtlasA11yService.kt](app/src/main/java/com/atlas/agent/core/a11y/AtlasA11yService.kt) | Accessibility tree, actions and screenshots |
+| Scheduled goals | [app/src/main/java/com/atlas/agent/core/autonomy/Goals.kt](app/src/main/java/com/atlas/agent/core/autonomy/Goals.kt) | Persistent background-goal scheduling |
 
-```bash
-adb shell "am start -a android.intent.action.SEND -t 'text/plain' --ez autosend true \
-  --es android.intent.extra.TEXT 'call the battery tool and tell me the level' \
-  -n com.atlas.agent/.ui.MainActivity"
-```
+## Scope & limitations
 
-`autosend=true` submits the prompt immediately — no taps. Progress is visible in
-`adb logcat -d -s Atlas:*` (`run#N start/end`, `llm: chars=… tools=… tokens=…`, `tool <name> ok=…`).
-
-## API facts (probed, not guessed)
-
-* `POST /chat/completions` + `tools` → real `tool_calls`, also inside streaming deltas,
-  `finish_reason: "tool_calls"`; deltas carry `reasoning`; `usage` lands on the final chunks.
-* `GET /models` is public: 81 models; only `claude-*` uses `/messages` (Anthropic protocol) and is
-  plan-gated on this account.
-* Vision accepts `image_url` data-URIs.
-
-## Repo layout
-
-```
-app/src/main/java/com/atlas/agent/
-├── core/agent/    AgentEngine, RunController, ApprovalHub, system prompt
-├── core/llm/      LlmClient (OpenAI + Anthropic SSE), models
-├── core/tools/    49 tools (device, apps, files, web, shell, ui, memory, skills, goals, agent)
-├── core/a11y/     AtlasA11yService — UI tree, gestures, screenshots
-├── core/autonomy/ GoalScheduler, workers, boot receiver
-├── core/store/    AtlasDb (SQLite), Settings
-├── core/voice/    SpeechRecognizer + TextToSpeech
-└── ui/            Compose screens (Chat, Sessions, Goals, Activity, Setup, Tools, Memory, Skills)
-scripts/           install.sh (install + key injection), emulator-up.sh, see.py (vision)
-docs/              ARCHITECTURE.md + screenshots
-```
+API credentials, model access, internet connectivity and Android permissions are external prerequisites. Accessibility behavior varies by OS and application. Background scheduling is subject to Android policy. Historical hardware observations are recorded in docs/ARCHITECTURE.md, not re-certified by this README refresh. Do not place API keys or private screen content in issues.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+See [LICENSE](LICENSE) for the repository license. Third-party components retain their own terms.

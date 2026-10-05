@@ -1,0 +1,29 @@
+{
+  "kind": "source-guide",
+  "source_head": "ca566d202a0f1de1cfb0359d9a300c80405869a0",
+  "source_tree": "935917547a263e4a9c95618e1032d4a01b53a919",
+  "source_repository": "https://github.com/MdSadman2004/Atlas",
+  "nodes": [
+    {
+      "label": "Agent loop",
+      "path": "app/src/main/java/com/atlas/agent/core/agent/AgentEngine.kt",
+      "detail": "Plans turns and executes registered tools"
+    },
+    {
+      "label": "Phone interaction",
+      "path": "app/src/main/java/com/atlas/agent/core/a11y/AtlasA11yService.kt",
+      "detail": "Accessibility tree, actions and screenshots"
+    },
+    {
+      "label": "Scheduled goals",
+      "path": "app/src/main/java/com/atlas/agent/core/autonomy/Goals.kt",
+      "detail": "Persistent background-goal scheduling"
+    }
+  ],
+  "caption": "Source guide drawn from repository files; not a runtime screenshot or fresh benchmark.",
+  "generated_by": "render_guides.py",
+  "image_dimensions": [
+    1600,
+    960
+  ]
+}

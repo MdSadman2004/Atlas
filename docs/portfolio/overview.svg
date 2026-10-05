@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 960" width="1600" height="960"><rect width="1600" height="960" fill="#f3eee4"/>
+<text x="64" y="124" font-family="Libre Caslon Display, Georgia, serif" font-size="76" fill="#2c2925">Atlas</text>
+<text x="64" y="188" font-family="Manrope, sans-serif" font-size="28" fill="#58534b">An Android agent with local tools, persistent memory, scheduled goals and API-backed</text>
+<text x="64" y="226" font-family="Manrope, sans-serif" font-size="28" fill="#58534b">inference.</text>
+<line x1="64" y1="272" x2="1536" y2="272" stroke="#c9beb0" stroke-width="1"/>
+<text x="64" y="316" font-family="Manrope, sans-serif" font-size="22" fill="#964c36">Agents &amp; tooling</text>
+<text x="760" y="316" font-family="Manrope, sans-serif" font-size="22" fill="#58534b">Files to start with</text>
+<text x="64" y="392" font-family="Manrope, sans-serif" font-size="32" fill="#2c2925">Agent loop</text>
+<text x="64" y="430" font-family="Manrope, sans-serif" font-size="22" fill="#58534b">Plans turns and executes registered tools</text>
+<text x="760" y="385" font-family="Manrope, sans-serif" font-size="20" fill="#58534b">app/src/main/java/com/atlas/agent/core/agent/AgentEngine.kt</text>
+<line x1="64" y1="490" x2="1536" y2="490" stroke="#c9beb0" stroke-width="1"/>
+<text x="64" y="550" font-family="Manrope, sans-serif" font-size="32" fill="#2c2925">Phone interaction</text>
+<text x="64" y="588" font-family="Manrope, sans-serif" font-size="22" fill="#58534b">Accessibility tree, actions and screenshots</text>
+<text x="760" y="543" font-family="Manrope, sans-serif" font-size="20" fill="#58534b">app/src/main/java/com/atlas/agent/core/a11y/AtlasA11yService.kt</text>
+<line x1="64" y1="648" x2="1536" y2="648" stroke="#c9beb0" stroke-width="1"/>
+<text x="64" y="708" font-family="Manrope, sans-serif" font-size="32" fill="#2c2925">Scheduled goals</text>
+<text x="64" y="746" font-family="Manrope, sans-serif" font-size="22" fill="#58534b">Persistent background-goal scheduling</text>
+<text x="760" y="701" font-family="Manrope, sans-serif" font-size="20" fill="#58534b">app/src/main/java/com/atlas/agent/core/autonomy/Goals.kt</text>
+<line x1="64" y1="806" x2="1536" y2="806" stroke="#c9beb0" stroke-width="1"/>
+<text x="64" y="898" font-family="Manrope, sans-serif" font-size="23" fill="#58534b">Source guide, not a runtime screenshot or a benchmark.</text>
+<text x="64" y="932" font-family="Manrope, sans-serif" font-size="18" fill="#58534b">github.com/MdSadman2004/Atlas</text>
+</svg>
